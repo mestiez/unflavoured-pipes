@@ -3,24 +3,26 @@ package com.zooi.unflavoured.pipes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.Container;
-import net.minecraft.world.MenuProvider;
-import net.minecraft.world.WorldlyContainerHolder;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.storage.WorldData;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.CubeVoxelShape;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -38,17 +40,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
     public CopperPipeBlock(Properties properties) {
         super(properties);
-        this.registerDefaultState(getStateDefinition().any()
-                .setValue(ENABLED, true)
-                .setValue(WATERLOGGED, false)
-                .setValue(JOINT, true)
-                .setValue(NORTH, false)
-                .setValue(EAST, false)
-                .setValue(SOUTH, false)
-                .setValue(WEST, false)
-                .setValue(UP, false)
-                .setValue(DOWN, false)
-        );
+        this.registerDefaultState(getStateDefinition().any().setValue(ENABLED, true).setValue(WATERLOGGED, false).setValue(JOINT, true).setValue(NORTH, false).setValue(EAST, false).setValue(SOUTH, false).setValue(WEST, false).setValue(UP, false).setValue(DOWN, false));
     }
 
     public BooleanProperty getConnection(Direction direction) {
@@ -66,6 +58,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         var world = context.getLevel();
         var pos = context.getClickedPos();
+        var fluidState = context.getLevel().getFluidState(pos);
         var state = this.defaultBlockState();
         for (var direction : Direction.values()) {
             var neighborPos = pos.relative(direction);
@@ -75,29 +68,22 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         }
         var straight = isStraight(state);
         if (straight) {
-            if (state.getValue(SOUTH) && !state.getValue(NORTH))
-                state = state.setValue(NORTH, true);
-            if (state.getValue(NORTH) && !state.getValue(SOUTH))
-                state = state.setValue(SOUTH, true);
+            if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
+            if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
 
-            if (state.getValue(WEST) && !state.getValue(EAST))
-                state = state.setValue(EAST, true);
-            if (state.getValue(EAST) && !state.getValue(WEST))
-                state = state.setValue(WEST, true);
+            if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
+            if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
 
-            if (state.getValue(UP) && !state.getValue(DOWN))
-                state = state.setValue(DOWN, true);
-            if (state.getValue(DOWN) && !state.getValue(UP))
-                state = state.setValue(UP, true);
+            if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
+            if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
         }
-        state = state.setValue(JOINT, !straight);
+        state = state.setValue(JOINT, !straight).setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
         return state;
     }
 
     @Override
     public void neighborChanged(BlockState state, Level world, BlockPos pos, Block blockIn, BlockPos fromPos, boolean isMoving) {
-        if (world.isClientSide)
-            return;
+        if (world.isClientSide) return;
 
         var stateChanged = false;
 
@@ -117,20 +103,14 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
             var straight = isStraight(state);
 
             if (straight) {
-                if (state.getValue(SOUTH) && !state.getValue(NORTH))
-                    state = state.setValue(NORTH, true);
-                if (state.getValue(NORTH) && !state.getValue(SOUTH))
-                    state = state.setValue(SOUTH, true);
+                if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
+                if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
 
-                if (state.getValue(WEST) && !state.getValue(EAST))
-                    state = state.setValue(EAST, true);
-                if (state.getValue(EAST) && !state.getValue(WEST))
-                    state = state.setValue(WEST, true);
+                if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
+                if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
 
-                if (state.getValue(UP) && !state.getValue(DOWN))
-                    state = state.setValue(DOWN, true);
-                if (state.getValue(DOWN) && !state.getValue(UP))
-                    state = state.setValue(UP, true);
+                if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
+                if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
             }
 
             state = state.setValue(JOINT, !straight);
@@ -140,6 +120,12 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
         super.neighborChanged(state, world, pos, blockIn, fromPos, isMoving);
     }
+
+    @Override
+    public boolean useShapeForLightOcclusion(BlockState blockState) {
+        return true;
+    }
+
 
     private void updateNeighbors(Level world, BlockPos pos, BlockState state) {
         for (var direction : Direction.values()) {
@@ -174,28 +160,19 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         var south = state.getValue(SOUTH);
 
         // only one side is active, we extend
-        if (up && !(down || east || west || north || south))
-            return true;
-        if (down && !(up || east || west || north || south))
-            return true;
-        if (east && !(up || down || west || north || south))
-            return true;
-        if (west && !(up || down || east || north || south))
-            return true;
-        if (north && !(up || down || east || west || south))
-            return true;
-        if (south && !(up || down || east || west || north))
-            return true;
+        if (up && !(down || east || west || north || south)) return true;
+        if (down && !(up || east || west || north || south)) return true;
+        if (east && !(up || down || west || north || south)) return true;
+        if (west && !(up || down || east || north || south)) return true;
+        if (north && !(up || down || east || west || south)) return true;
+        if (south && !(up || down || east || west || north)) return true;
 
         // at leat two sides are active, are the others not?
-        if (up && down && !(east || west || north || south))
-            return true;
+        if (up && down && !(east || west || north || south)) return true;
 
-        if (east && west && !(up || down || north || south))
-            return true;
+        if (east && west && !(up || down || north || south)) return true;
 
-        if (north && south && !(up || down || east || west))
-            return true;
+        if (north && south && !(up || down || east || west)) return true;
 
         return false;
     }
@@ -204,9 +181,47 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         builder.add(ENABLED, WATERLOGGED, JOINT, NORTH, EAST, SOUTH, WEST, UP, DOWN);
     }
 
+    @Nullable
     @Override
-    public VoxelShape getCollisionShape(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, CollisionContext collisionContext) {
-        return Block.box(5, 5, 0, 11, 11, 16);
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState blockState, BlockEntityType<T> blockEntityType) {
+        return level.isClientSide ? null : createTickerHelper(blockEntityType, UnflavouredPipesMod.ModBlockEntityType.COPPER_PIPE, CopperPipeBlockEntity::pushItemsTick);
+    }
+
+    @Override
+    public @NotNull VoxelShape getCollisionShape(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, CollisionContext collisionContext) {
+        return getInteractionShape(blockState, blockGetter, blockPos);
+    }
+
+    @Override
+    public @NotNull VoxelShape getInteractionShape(BlockState state, BlockGetter blockGetter, BlockPos blockPos) {
+        var shape = Block.box(5, 5, 5, 11, 11, 11); // center block always present
+        // TODO should cache
+        if (state.getValue(NORTH)) shape = Shapes.or(shape, Block.box(5, 5, 0, 11, 11, 8));
+        if (state.getValue(SOUTH)) shape = Shapes.or(shape, Block.box(5, 5, 8, 11, 11, 16));
+        if (state.getValue(UP))    shape = Shapes.or(shape, Block.box(5, 8, 5, 11, 16, 11));
+        if (state.getValue(DOWN))  shape = Shapes.or(shape, Block.box(5, 0, 5, 11, 8, 11));
+        if (state.getValue(WEST))  shape = Shapes.or(shape, Block.box(0, 5, 5, 8, 11, 11));
+        if (state.getValue(EAST))  shape = Shapes.or(shape, Block.box(8, 5, 5, 16, 11, 11));
+
+        return shape;
+    }
+
+    @Override
+    public BlockState updateShape(BlockState blockState, Direction direction, BlockState blockState2, LevelAccessor levelAccessor, BlockPos blockPos, BlockPos blockPos2) {
+        if (blockState.getValue(WATERLOGGED)) {
+            levelAccessor.scheduleTick(blockPos, Fluids.WATER, Fluids.WATER.getTickDelay(levelAccessor));
+        }
+
+        return super.updateShape(blockState, direction, blockState2, levelAccessor, blockPos, blockPos2);
+    }
+
+    public boolean isPathfindable(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, PathComputationType pathComputationType) {
+        return false;
+    }
+
+    @Override
+    public boolean hasDynamicShape() {
+        return true;
     }
 
     @Override
@@ -216,7 +231,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
     @Override
     public FluidState getFluidState(BlockState blockState) {
-        return (Boolean) blockState.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(blockState);
+        return blockState.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(blockState);
     }
 
     @Override

@@ -26,7 +26,7 @@ public final class UnflavouredPipesMod {
         public static final Item COPPER_PIPE = new BlockItem(ModBlocks.COPPER_PIPE, new Item.Properties().stacksTo(64).arch$tab(CreativeModeTabs.FUNCTIONAL_BLOCKS));
     }
 
-    public static class ModBlockEntiiyTyoe {
+    public static class ModBlockEntityType {
         public static final BlockEntityType<CopperPipeBlockEntity> COPPER_PIPE = BlockEntityType.Builder.of(CopperPipeBlockEntity::new, ModBlocks.COPPER_PIPE).build(null);
     }
 
@@ -41,6 +41,6 @@ public final class UnflavouredPipesMod {
 
         blocks.register(getId("copper_pipe"), () -> ModBlocks.COPPER_PIPE);
         items.register(getId("copper_pipe"), () -> ModItems.COPPER_PIPE);
-        blockEntities.register(getId("copper_pipe"), () -> ModBlockEntiiyTyoe.COPPER_PIPE);
+        blockEntities.register(getId("copper_pipe"), () -> ModBlockEntityType.COPPER_PIPE);
     }
 }

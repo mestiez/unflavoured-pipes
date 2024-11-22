@@ -1,0 +1,7 @@
+{
+	"parent": "unflavoured_pipes:block/copper_pipe_bend",
+	"textures": {
+		"0": "unflavoured_pipes:block/copper_pipe",
+		"particle": "unflavoured_pipes:block/copper_pipe"
+	}
+}

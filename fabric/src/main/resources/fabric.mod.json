@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "unflavoured_pipes",
+  "version": "${version}",
+  "name": "Unflavoured Pipes",
+  "description": "Item and fluid transport pipes that are so vanilla-like that they become unflavoured.",
+  "authors": [
+    "zooi"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/unflavoured_pipes/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.zooi.unflavoured.pipes.fabric.UnflavouredPipesMod"
+    ],
+    "client": [
+      "com.zooi.unflavoured.pipes.fabric.client.UnflavouredPipesModClient"
+    ]
+  },
+  "mixins": [
+    "unflavoured_pipes.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "architectury": ">=9.2.14",
+    "fabric-api": "*"
+  }
+}

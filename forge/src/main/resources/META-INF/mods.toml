@@ -1,0 +1,35 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+#issueTrackerURL = ""
+license = "Insert License Here"
+
+[[mods]]
+modId = "unflavoured_pipes"
+version = "${version}"
+displayName = "Unflavoured Pipes"
+authors = "zooi"
+description = '''
+Item and fluid transport pipes that are so vanilla-like that they become unflavoured.
+'''
+#logoFile = ""
+
+[[dependencies.unflavoured_pipes]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.unflavoured_pipes]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.unflavoured_pipes]]
+modId = "architectury"
+mandatory = true
+versionRange = "[9.2.14,)"
+ordering = "AFTER"
+side = "BOTH"

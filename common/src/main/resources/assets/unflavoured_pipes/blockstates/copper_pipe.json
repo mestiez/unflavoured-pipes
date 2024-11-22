@@ -1,0 +1,46 @@
+{
+  "multipart": [
+    {
+      "when": { "joint": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_joint"
+      }
+    },
+    {
+      "when": { "up": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_up"
+      }
+    },
+    {
+      "when": { "down": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_down"
+      }
+    },
+    {
+      "when": { "north": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_north"
+      }
+    },
+    {
+      "when": { "south": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_south"
+      }
+    },
+    {
+      "when": { "west": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_west"
+      }
+    },
+    {
+      "when": { "east": "true" },
+      "apply": {
+        "model": "unflavoured_pipes:block/copper_pipe_east"
+      }
+    }
+  ]
+}

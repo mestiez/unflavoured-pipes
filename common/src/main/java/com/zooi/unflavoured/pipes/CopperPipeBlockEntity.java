@@ -1,37 +1,38 @@
 package com.zooi.unflavoured.pipes;
 
-import dev.architectury.fluid.FluidStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.stats.Stats;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.world.LockCode;
 import net.minecraft.world.WorldlyContainerHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySelector;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
-import net.minecraft.world.level.block.entity.ComparatorBlockEntity;
-import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
+import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class CopperPipeBlockEntity extends BlockEntity implements Container {
+public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
     public static final int TRANSFER_COOLDOWN = 15;
 
-    private final NonNullList<ItemStack> items;
+    private NonNullList<ItemStack> items;
     private int timer = 0;
+    private LockCode lockKey;
 
     public CopperPipeBlockEntity(BlockPos blockPos, BlockState blockState) {
         super(UnflavouredPipesMod.ModBlockEntityType.COPPER_PIPE, blockPos, blockState);
@@ -55,54 +56,38 @@ public class CopperPipeBlockEntity extends BlockEntity implements Container {
         var north = state.getValue(CopperPipeBlock.NORTH);
         var south = state.getValue(CopperPipeBlock.SOUTH);
 
-        if (up && down) {
-            var upPos = blockPos.relative(Direction.UP);
-            var upPosCenter = upPos.getCenter();
-            var downPos = blockPos.relative(Direction.DOWN);
-            var downPosCenter = downPos.getCenter();
-            var upContainer = getContainerAt(world, upPosCenter.x, upPosCenter.y, upPosCenter.z);
-            var downContainer = getContainerAt(world, downPosCenter.x, downPosCenter.y, downPosCenter.z);
+        var upPos = blockPos.relative(Direction.UP);
+        var upPosCenter = upPos.getCenter();
+        var downPos = blockPos.relative(Direction.DOWN);
+        var downPosCenter = downPos.getCenter();
 
+        if (up) {
+            var upContainer = getContainerAt(world, upPosCenter.x, upPosCenter.y, upPosCenter.z);
             if (upContainer != null)
                 ContainerUtils.transferFirstAvailableItem(copperPipe, upContainer, Direction.UP);
+        }
 
+        if (down) {
+            var downContainer = getContainerAt(world, downPosCenter.x, downPosCenter.y, downPosCenter.z);
             if (downContainer != null)
                 ContainerUtils.transferFirstAvailableItem(downContainer, copperPipe, Direction.DOWN);
+        }
 
-            if (world.getBlockState(upPos).is(Blocks.COMPOSTER)) {
-                var composterState = world.getBlockState(upPos);
-                var composter = (ComposterBlock) composterState.getBlock();
+        if (world.getBlockState(upPos).is(Blocks.COMPOSTER)) {
+            var composterState = world.getBlockState(upPos);
+            var composter = (ComposterBlock) composterState.getBlock();
+            if (composterState.getValue(ComposterBlock.LEVEL) < 7)
                 for (var stack : copperPipe.getItems()) {
                     if (stack.isEmpty())
                         continue;
 
+                    var oldLvl = composterState.getValue(ComposterBlock.LEVEL);
                     composterState = ComposterBlock.insertItem(null, composterState, (ServerLevel) world, stack, upPos);
-                    ComposterBlock.handleFill(world, upPos, composterState.getValue(ComposterBlock.LEVEL) != 8); // does nothing because it should be run clientside i think
-//                    {
-//                        int i = composterState.getValue(ComposterBlock.LEVEL);
-//                        if (i < 8 && ComposterBlock.COMPOSTABLES.containsKey(stack.getItem())) {
-//                            if (i < 7 && !world.isClientSide) {
-//                                {
-//                                    float f = ComposterBlock.COMPOSTABLES.getFloat(stack.getItem());
-//                                    if ((i != 0 || !(f > 0.0F)) && !(world.getRandom().nextDouble() < f)) {
-//
-//                                    } else {
-//                                        int j = i + 1;
-//                                        BlockState blockState2 = composterState.setValue(ComposterBlock.LEVEL, j);
-//                                        world.setBlock(blockPos, blockState2, 3);
-//                                        if (j == 7) {
-//                                            world.scheduleTick(blockPos, composterState.getBlock(), 20);
-//                                        }
-//                                    }
-//                                }
-//                                stack.shrink(1);
-//                            }
-//                        }else if (i == 8){
-//                            ComposterBlock.extractProduce((Entity)null, composterState, world, blockPos);
-//                        }
-//                    }
+                    var newLvl = composterState.getValue(ComposterBlock.LEVEL);
+                    ComposterBlock.handleFill(world, upPos, newLvl != 8); // does nothing because it should be run clientside i think
+
+                    world.playSound((Player) null, blockPos, newLvl > oldLvl ? SoundEvents.COMPOSTER_FILL_SUCCESS : SoundEvents.COMPOSTER_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
                 }
-            }
         }
     }
 
@@ -160,8 +145,14 @@ public class CopperPipeBlockEntity extends BlockEntity implements Container {
         return itemStack;
     }
 
-    public NonNullList<ItemStack> getItems() {
+    @Override
+    public @NotNull NonNullList<ItemStack> getItems() {
         return items;
+    }
+
+    @Override
+    protected void setItems(NonNullList<ItemStack> it) {
+        items = it;
     }
 
     @Override
@@ -184,6 +175,33 @@ public class CopperPipeBlockEntity extends BlockEntity implements Container {
 
     @Override
     public void clearContent() {
-        items.clear();
+        getItems().clear();
+    }
+
+    @Override
+    protected Component getDefaultName() {
+        return Component.empty();
+    }
+
+    @Override
+    protected AbstractContainerMenu createMenu(int i, Inventory inventory) {
+        return null;
+    }
+
+    @Override
+    public void load(CompoundTag compoundTag) {
+        super.load(compoundTag);
+        this.items = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
+        if (!this.tryLoadLootTable(compoundTag))
+            ContainerHelper.loadAllItems(compoundTag, this.items);
+        this.timer = compoundTag.getInt("Timer");
+    }
+
+    @Override
+    protected void saveAdditional(CompoundTag compoundTag) {
+        super.saveAdditional(compoundTag);
+        if (!this.trySaveLootTable(compoundTag))
+            ContainerHelper.saveAllItems(compoundTag, this.items);
+        compoundTag.putInt("Timer", this.timer);
     }
 }

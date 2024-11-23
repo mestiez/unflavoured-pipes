@@ -3,6 +3,7 @@ package com.zooi.unflavoured.pipes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.Container;
+import net.minecraft.world.Containers;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -126,7 +127,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         return true;
     }
 
-
     private void updateNeighbors(Level world, BlockPos pos, BlockState state) {
         for (var direction : Direction.values()) {
             var neighborPos = pos.relative(direction);
@@ -142,6 +142,18 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
                     world.setBlock(neighborPos, updatedNeighborState, 2);
                 }
             }
+        }
+    }
+
+    @Override
+    public void onRemove(BlockState state1, Level world, BlockPos pos, BlockState state2, boolean idk) {
+        if (!state1.is(state2.getBlock())) {
+            var blockEntity = world.getBlockEntity(pos);
+            if (blockEntity instanceof CopperPipeBlockEntity b) {
+                Containers.dropContents(world, pos, b);
+                world.updateNeighbourForOutputSignal(pos, this); //uhhh
+            }
+            super.onRemove(state1, world, pos, state2, idk);
         }
     }
 
@@ -169,9 +181,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
         // at leat two sides are active, are the others not?
         if (up && down && !(east || west || north || south)) return true;
-
         if (east && west && !(up || down || north || south)) return true;
-
         if (north && south && !(up || down || east || west)) return true;
 
         return false;
@@ -193,15 +203,20 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     }
 
     @Override
+    public VoxelShape getShape(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, CollisionContext collisionContext) {
+        return getInteractionShape(blockState, blockGetter, blockPos);
+    }
+
+    @Override
     public @NotNull VoxelShape getInteractionShape(BlockState state, BlockGetter blockGetter, BlockPos blockPos) {
         var shape = Block.box(5, 5, 5, 11, 11, 11); // center block always present
         // TODO should cache
         if (state.getValue(NORTH)) shape = Shapes.or(shape, Block.box(5, 5, 0, 11, 11, 8));
         if (state.getValue(SOUTH)) shape = Shapes.or(shape, Block.box(5, 5, 8, 11, 11, 16));
-        if (state.getValue(UP))    shape = Shapes.or(shape, Block.box(5, 8, 5, 11, 16, 11));
-        if (state.getValue(DOWN))  shape = Shapes.or(shape, Block.box(5, 0, 5, 11, 8, 11));
-        if (state.getValue(WEST))  shape = Shapes.or(shape, Block.box(0, 5, 5, 8, 11, 11));
-        if (state.getValue(EAST))  shape = Shapes.or(shape, Block.box(8, 5, 5, 16, 11, 11));
+        if (state.getValue(UP)) shape = Shapes.or(shape, Block.box(5, 8, 5, 11, 16, 11));
+        if (state.getValue(DOWN)) shape = Shapes.or(shape, Block.box(5, 0, 5, 11, 8, 11));
+        if (state.getValue(WEST)) shape = Shapes.or(shape, Block.box(0, 5, 5, 8, 11, 11));
+        if (state.getValue(EAST)) shape = Shapes.or(shape, Block.box(8, 5, 5, 16, 11, 11));
 
         return shape;
     }
@@ -213,6 +228,11 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         }
 
         return super.updateShape(blockState, direction, blockState2, levelAccessor, blockPos, blockPos2);
+    }
+
+    @Override
+    public boolean isCollisionShapeFullBlock(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos) {
+        return false;
     }
 
     public boolean isPathfindable(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, PathComputationType pathComputationType) {
@@ -230,6 +250,11 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     }
 
     @Override
+    public VoxelShape getVisualShape(BlockState blockState, BlockGetter blockGetter, BlockPos blockPos, CollisionContext collisionContext) {
+        return super.getVisualShape(blockState, blockGetter, blockPos, collisionContext);
+    }
+
+    @Override
     public FluidState getFluidState(BlockState blockState) {
         return blockState.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(blockState);
     }
@@ -244,9 +269,13 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         if (neighborState.hasBlockEntity()) {
             var be = world.getBlockEntity(pos);
             if (be != null) {
-                return be instanceof Container || be instanceof CopperPipeBlockEntity;
+                return
+                    be instanceof Container ||
+                    be instanceof CopperPipeBlockEntity;
             }
         }
-        return b instanceof CopperPipeBlock;
+        return
+            b instanceof CopperPipeBlock ||
+            b instanceof ComposterBlock;
     }
 }

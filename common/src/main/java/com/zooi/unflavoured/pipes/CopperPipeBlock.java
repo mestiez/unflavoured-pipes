@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.PathComputationType;
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterloggedBlock {
-    public static final BooleanProperty ENABLED = BlockStateProperties.ENABLED;
+    //    public static final BooleanProperty ENABLED = BlockStateProperties.ENABLED;
     public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     public static final BooleanProperty NORTH = BlockStateProperties.NORTH;
     public static final BooleanProperty EAST = BlockStateProperties.EAST;
@@ -37,13 +38,24 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     public static final BooleanProperty UP = BlockStateProperties.UP;
     public static final BooleanProperty DOWN = BlockStateProperties.DOWN;
     public static final BooleanProperty JOINT = BooleanProperty.create("joint");
+    public static final IntegerProperty POWER = BlockStateProperties.POWER;
 
     public CopperPipeBlock(Properties properties) {
         super(properties);
-        this.registerDefaultState(getStateDefinition().any().setValue(ENABLED, true).setValue(WATERLOGGED, false).setValue(JOINT, true).setValue(NORTH, false).setValue(EAST, false).setValue(SOUTH, false).setValue(WEST, false).setValue(UP, false).setValue(DOWN, false));
+        this.registerDefaultState(getStateDefinition().any()
+//                .setValue(ENABLED, true)
+                .setValue(WATERLOGGED, false)
+                .setValue(POWER, 0)
+                .setValue(JOINT, false)
+                .setValue(NORTH, false)
+                .setValue(EAST, false)
+                .setValue(SOUTH, false)
+                .setValue(WEST, false)
+                .setValue(UP, false)
+                .setValue(DOWN, false));
     }
 
-    public BooleanProperty getConnection(Direction direction) {
+    public static BooleanProperty getConnection(Direction direction) {
         return switch (direction) {
             case DOWN -> DOWN;
             case UP -> UP;
@@ -81,44 +93,68 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         return state;
     }
 
+    public BlockState updatePower(BlockState state, Level world, BlockPos pos) {
+        if (!world.isClientSide) {
+            int pow = world.getBestNeighborSignal(pos);
+            state = state.setValue(POWER, clamp(pow, 0, 15));
+            world.setBlock(pos, state, 1 | 2 | 4);
+        }
+        return state;
+    }
+
+    private static int clamp(int value, int a, int b) {
+        return Math.max(Math.min(value, b), a);
+    }
+
+    @Override
+    public boolean isSignalSource(BlockState state) {
+        return true;
+    }
+
+    @Override
+    public int getSignal(BlockState blockState, BlockGetter blockAccess, BlockPos pos, Direction side) {
+        return Math.max(0, blockState.getValue(POWER) - 1);
+    }
+
     @Override
     public void neighborChanged(BlockState state, Level world, BlockPos pos, Block blockIn, BlockPos fromPos, boolean isMoving) {
-        if (world.isClientSide) return;
-
-        var stateChanged = false;
-
-        for (var direction : Direction.values()) {
-            var neighborPos = pos.relative(direction);
-            var neighborState = world.getBlockState(neighborPos);
-            var connected = this.canConnectTo(neighborState, neighborPos, world);
-            var connectionProperty = getConnection(direction);
-
-            if (state.getValue(connectionProperty) != connected) {
-                state = state.setValue(connectionProperty, connected);
-                stateChanged = true;
-            }
-        }
-
-        if (stateChanged) {
-            var straight = isStraight(state);
-
-            if (straight) {
-                if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
-                if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
-
-                if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
-                if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
-
-                if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
-                if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
-            }
-
-            state = state.setValue(JOINT, !straight);
-            world.setBlock(pos, state, 2);
-            this.updateNeighbors(world, pos, state);
-        }
-
         super.neighborChanged(state, world, pos, blockIn, fromPos, isMoving);
+        if (!world.isClientSide) {
+
+            var stateChanged = false;
+
+            for (var direction : Direction.values()) {
+                var neighborPos = pos.relative(direction);
+                var neighborState = world.getBlockState(neighborPos);
+                var connected = this.canConnectTo(neighborState, neighborPos, world);
+                var connectionProperty = getConnection(direction);
+
+                if (state.getValue(connectionProperty) != connected) {
+                    state = state.setValue(connectionProperty, connected);
+                    stateChanged = true;
+                }
+            }
+
+            if (stateChanged) {
+                var straight = isStraight(state);
+
+                if (straight) {
+                    if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
+                    if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
+
+                    if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
+                    if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
+
+                    if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
+                    if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
+                }
+
+                state = state.setValue(JOINT, !straight);
+                world.setBlock(pos, state, 2);
+                this.updateNeighbors(world, pos, state);
+            }
+        }
+        state = this.updatePower(state, world, pos);
     }
 
     @Override
@@ -158,8 +194,9 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
     @Override
     public void setPlacedBy(Level world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
-        super.setPlacedBy(world, pos, state, placer, stack);
+        state = this.updatePower(state, world, pos);
         this.updateNeighbors(world, pos, state);
+        super.setPlacedBy(world, pos, state, placer, stack);
     }
 
     public boolean isStraight(BlockState state) {
@@ -178,7 +215,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         if (north && !(up || down || east || west || south)) return true;
         if (south && !(up || down || east || west || north)) return true;
 
-        // at leat two sides are active, are the others not?
+        // at least two sides are active, are the others not?
         if (up && down && !(east || west || north || south)) return true;
         if (east && west && !(up || down || north || south)) return true;
         if (north && south && !(up || down || east || west)) return true;
@@ -187,7 +224,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     }
 
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(ENABLED, WATERLOGGED, JOINT, NORTH, EAST, SOUTH, WEST, UP, DOWN);
+        builder.add(WATERLOGGED, JOINT, NORTH, EAST, SOUTH, WEST, UP, DOWN, POWER);
     }
 
     @Nullable
@@ -268,13 +305,10 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         if (neighborState.hasBlockEntity()) {
             var be = world.getBlockEntity(pos);
             if (be != null) {
-                return
-                    be instanceof Container ||
-                    be instanceof CopperPipeBlockEntity;
+                return be instanceof Container || be instanceof CopperPipeBlockEntity;
             }
         }
-        return
-            b instanceof CopperPipeBlock ||
-            b instanceof ComposterBlock;
+
+        return b instanceof CopperPipeBlock || b instanceof ComposterBlock || b instanceof EndPortalFrameBlock;
     }
 }

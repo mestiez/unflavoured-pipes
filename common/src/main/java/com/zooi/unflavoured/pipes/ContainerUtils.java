@@ -7,35 +7,30 @@ import net.minecraft.world.item.ItemStack;
 
 public class ContainerUtils {
 
-    /**
-     * Transfers the first available item from sourceContainer to destinationContainer, considering direction for WorldlyContainers.
-     * Merging is taken into account, including max stack sizes, NBT tags, etc.
-     *
-     * @param sourceContainer      The container to transfer items from.
-     * @param destinationContainer The container to transfer items to.
-     * @param direction            The direction from which the transfer is happening.
-     * @return True if an item was transferred, false otherwise.
-     */
     public static boolean transferFirstAvailableItem(Container sourceContainer, Container destinationContainer, Direction direction) {
-        // Get the slots accessible from the source container's face
         int[] sourceSlots = getAccessibleSlots(sourceContainer, direction);
 
         for (int srcSlot : sourceSlots) {
-            var sourceStack = sourceContainer.getItem(srcSlot);
+            ItemStack sourceStack = sourceContainer.getItem(srcSlot);
 
             // Skip empty slots or items that cannot be taken through this face
             if (sourceStack.isEmpty() || !canExtractItem(sourceContainer, destinationContainer, sourceStack, srcSlot, direction)) {
                 continue;
             }
 
-            // Attempt to transfer the item stack
-            var remainingStack = transferItemStack(sourceContainer, srcSlot, destinationContainer, direction.getOpposite(), sourceStack);
+            // Use removeItem to properly remove the item from the source container
+            ItemStack extractedStack = sourceContainer.removeItem(srcSlot, sourceStack.getCount());
 
-            // Update source container slot
-            sourceContainer.setItem(srcSlot, remainingStack);
+            // Try to add the item to the destination container
+            ItemStack remainingStack = transferItemStackToContainer(destinationContainer, extractedStack, direction.getOpposite());
 
-            // If items were transferred
-            if (remainingStack.isEmpty() || remainingStack.getCount() < sourceStack.getCount()) {
+            // If there are remaining items that couldn't be transferred, put them back into the source container
+            if (!remainingStack.isEmpty()) {
+                sourceContainer.setItem(srcSlot, remainingStack);
+            }
+
+            // If any items were transferred
+            if (remainingStack.getCount() < extractedStack.getCount()) {
                 sourceContainer.setChanged();
                 destinationContainer.setChanged();
                 return true;
@@ -45,53 +40,46 @@ public class ContainerUtils {
         return false;
     }
 
-    /**
-     * Transfers as much as possible of the given itemStack from sourceContainer to destinationContainer.
-     * Merges with existing stacks and respects max stack sizes and slot restrictions.
-     *
-     * @param sourceContainer      The container the item stack is from.
-     * @param srcSlot              The slot in the source container.
-     * @param destinationContainer The container to transfer the item stack to.
-     * @param direction            The direction into which the transfer is happening (used for WorldlyContainers).
-     * @param itemStack            The item stack to transfer.
-     * @return The remaining item stack that couldn't be transferred.
-     */
-    private static ItemStack transferItemStack(Container sourceContainer, int srcSlot, Container destinationContainer, Direction direction, ItemStack itemStack) {
-        var remainingStack = itemStack.copy();
+    private static ItemStack transferItemStackToContainer(Container destinationContainer, ItemStack itemStack, Direction direction) {
+        ItemStack remainingStack = itemStack.copy();
 
-        // Get the slots accessible from the destination container's face
-        var destSlots = getAccessibleSlots(destinationContainer, direction);
+        int[] destSlots = getAccessibleSlots(destinationContainer, direction);
 
         // First, try to merge with existing stacks
-        for (var destSlot : destSlots) {
+        for (int destSlot : destSlots) {
             ItemStack destStack = destinationContainer.getItem(destSlot);
 
             if (canMergeItems(destStack, remainingStack) && canInsertItem(destinationContainer, remainingStack, destSlot, direction)) {
-                var maxTransfer = Math.min(remainingStack.getCount(), destStack.getMaxStackSize() - destStack.getCount());
+                int maxTransfer = Math.min(remainingStack.getCount(), destStack.getMaxStackSize() - destStack.getCount());
                 if (maxTransfer > 0) {
+                    // Use setItem to update the stack properly
                     destStack.grow(maxTransfer);
                     remainingStack.shrink(maxTransfer);
                     destinationContainer.setItem(destSlot, destStack);
-                    if (remainingStack.isEmpty())
-                        return ItemStack.EMPTY;
+                    if (remainingStack.isEmpty()) {
+                        break;
+                    }
                 }
             }
         }
 
-        // Then, place into empty slots
-        for (var destSlot : destSlots) {
-            ItemStack destStack = destinationContainer.getItem(destSlot);
+        // Then, try to place into empty slots
+        if (!remainingStack.isEmpty()) {
+            for (int destSlot : destSlots) {
+                ItemStack destStack = destinationContainer.getItem(destSlot);
 
-            if (destStack.isEmpty() && canInsertItem(destinationContainer, remainingStack, destSlot, direction)) {
-                int maxPlacement = Math.min(remainingStack.getCount(), remainingStack.getMaxStackSize());
-                var stackToPlace = remainingStack.copy();
-                stackToPlace.setCount(maxPlacement);
+                if (destStack.isEmpty() && canInsertItem(destinationContainer, remainingStack, destSlot, direction)) {
+                    int maxPlacement = Math.min(remainingStack.getCount(), remainingStack.getMaxStackSize());
+                    ItemStack stackToPlace = remainingStack.copy();
+                    stackToPlace.setCount(maxPlacement);
 
-                destinationContainer.setItem(destSlot, stackToPlace);
-                remainingStack.shrink(maxPlacement);
-
-                if (remainingStack.isEmpty())
-                    return ItemStack.EMPTY;
+                    // Use setItem to add the item
+                    destinationContainer.setItem(destSlot, stackToPlace);
+                    remainingStack.shrink(maxPlacement);
+                    if (remainingStack.isEmpty()) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -102,13 +90,6 @@ public class ContainerUtils {
         return itemStack.getCount() <= itemStack.getMaxStackSize() && ItemStack.isSameItemSameTags(itemStack, itemStack2);
     }
 
-    /**
-     * Retrieves the accessible slots for the container from the given direction.
-     *
-     * @param container The container.
-     * @param direction The direction.
-     * @return An array of accessible slot indices.
-     */
     private static int[] getAccessibleSlots(Container container, Direction direction) {
         if (container instanceof WorldlyContainer worldlyContainer) {
             return worldlyContainer.getSlotsForFace(direction);
@@ -121,15 +102,6 @@ public class ContainerUtils {
         }
     }
 
-    /**
-     * Checks if an item can be extracted from the container from the given slot and direction.
-     *
-     * @param src       The container.
-     * @param stack     The item stack.
-     * @param slot      The slot index.
-     * @param direction The extraction direction.
-     * @return True if the item can be extracted, false otherwise.
-     */
     private static boolean canExtractItem(Container src, Container dst, ItemStack stack, int slot, Direction direction) {
         if (!src.canTakeItem(dst, slot, stack))
             return false;
@@ -140,15 +112,6 @@ public class ContainerUtils {
         return true;
     }
 
-    /**
-     * Checks if an item can be inserted into the container at the given slot and direction.
-     *
-     * @param container The container.
-     * @param stack     The item stack.
-     * @param slot      The slot index.
-     * @param direction The insertion direction.
-     * @return True if the item can be inserted, false otherwise.
-     */
     private static boolean canInsertItem(Container container, ItemStack stack, int slot, Direction direction) {
         if (!container.canPlaceItem(slot, stack)) {
             return false;

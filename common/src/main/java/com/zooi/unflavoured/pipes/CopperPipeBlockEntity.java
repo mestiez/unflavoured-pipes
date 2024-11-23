@@ -10,20 +10,19 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
-import net.minecraft.world.LockCode;
 import net.minecraft.world.WorldlyContainerHolder;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.block.state.pattern.BlockPattern;
+import net.minecraft.world.level.redstone.Redstone;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,7 +31,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
 
     private NonNullList<ItemStack> items;
     private int timer = 0;
-    private LockCode lockKey;
+    private int selectedDirIndex;
 
     public CopperPipeBlockEntity(BlockPos blockPos, BlockState blockState) {
         super(UnflavouredPipesMod.ModBlockEntityType.COPPER_PIPE, blockPos, blockState);
@@ -49,46 +48,119 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         else
             return;
 
-        var up = state.getValue(CopperPipeBlock.UP);
-        var down = state.getValue(CopperPipeBlock.DOWN);
-        var east = state.getValue(CopperPipeBlock.EAST);
-        var west = state.getValue(CopperPipeBlock.WEST);
-        var north = state.getValue(CopperPipeBlock.NORTH);
-        var south = state.getValue(CopperPipeBlock.SOUTH);
+        if (state.getValue(CopperPipeBlock.POWER) == 0)
+            return;
 
-        var upPos = blockPos.relative(Direction.UP);
-        var upPosCenter = upPos.getCenter();
-        var downPos = blockPos.relative(Direction.DOWN);
-        var downPosCenter = downPos.getCenter();
+        var directions = Direction.values();
+        for (var dir : directions)
+            handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING);
 
-        if (up) {
-            var upContainer = getContainerAt(world, upPosCenter.x, upPosCenter.y, upPosCenter.z);
-            if (upContainer != null)
-                ContainerUtils.transferFirstAvailableItem(copperPipe, upContainer, Direction.UP);
+        for (int i = 0; i < directions.length; i++) {
+            if (handleDir(directions[(copperPipe.selectedDirIndex++) % directions.length], world, blockPos, state, copperPipe, Flow.OUTGOING))
+                break; // we only do 1 thing at most
+        }
+    }
+
+    private static boolean handleDir(Direction direction, Level world, BlockPos pipePos, BlockState pipeState, CopperPipeBlockEntity pipeBlockEntity, Flow flow) {
+        var directionPos = pipePos.relative(direction);
+        var directionPosCenter = directionPos.getCenter();
+        var stateInDirection = world.getBlockState(directionPos);
+
+        var didSomething = false;
+
+        // handle container
+        var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
+        if (targetContainer != null) {
+            if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
+                didSomething = ContainerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction);
+            else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
+                didSomething = ContainerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction);
         }
 
-        if (down) {
-            var downContainer = getContainerAt(world, downPosCenter.x, downPosCenter.y, downPosCenter.z);
-            if (downContainer != null)
-                ContainerUtils.transferFirstAvailableItem(downContainer, copperPipe, Direction.DOWN);
+        // handle composter (!didSomething && )
+        if (!didSomething && flow == Flow.OUTGOING && stateInDirection.is(Blocks.COMPOSTER)) {
+            didSomething = handleComposter(world, pipeBlockEntity, stateInDirection, directionPos, didSomething);
         }
 
-        if (world.getBlockState(upPos).is(Blocks.COMPOSTER)) {
-            var composterState = world.getBlockState(upPos);
-            var composter = (ComposterBlock) composterState.getBlock();
-            if (composterState.getValue(ComposterBlock.LEVEL) < 7)
-                for (var stack : copperPipe.getItems()) {
-                    if (stack.isEmpty())
-                        continue;
+        if (!didSomething && stateInDirection.is(Blocks.END_PORTAL_FRAME) && flow == Flow.OUTGOING) {
+            handleEnderFrame(world, pipeBlockEntity, stateInDirection, directionPos);
+        }
 
-                    var oldLvl = composterState.getValue(ComposterBlock.LEVEL);
-                    composterState = ComposterBlock.insertItem(null, composterState, (ServerLevel) world, stack, upPos);
-                    var newLvl = composterState.getValue(ComposterBlock.LEVEL);
-                    ComposterBlock.handleFill(world, upPos, newLvl != 8); // does nothing because it should be run clientside i think
+        return didSomething;
+    }
 
-                    world.playSound((Player) null, blockPos, newLvl > oldLvl ? SoundEvents.COMPOSTER_FILL_SUCCESS : SoundEvents.COMPOSTER_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+    private static boolean handleComposter(Level world, CopperPipeBlockEntity pipeBlockEntity, BlockState stateInDirection, BlockPos directionPos, boolean didSomething) {
+        var composterState = stateInDirection;
+        if (composterState.getValue(ComposterBlock.LEVEL) < 7)
+            for (var stack : pipeBlockEntity.getItems()) {
+                if (stack.isEmpty() || !ComposterBlock.COMPOSTABLES.containsKey(stack.getItem()))
+                    continue;
+
+                var oldLvl = composterState.getValue(ComposterBlock.LEVEL);
+                composterState = ComposterBlock.insertItem(null, composterState, (ServerLevel) world, stack, directionPos);
+                var newLvl = composterState.getValue(ComposterBlock.LEVEL);
+                //ComposterBlock.handleFill(world, directionPos, newLvl != 8); // does nothing because it should be run clientside i think
+                world.playSound(null, directionPos, newLvl > oldLvl ? SoundEvents.COMPOSTER_FILL_SUCCESS : SoundEvents.COMPOSTER_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+                didSomething = true;
+            }
+        return didSomething;
+    }
+
+    private static void handleEnderFrame(Level world, CopperPipeBlockEntity pipeBlockEntity, BlockState stateInDirection, BlockPos directionPos) {
+        if (stateInDirection.getValue(EndPortalFrameBlock.HAS_EYE))
+            return;
+
+        for (var itemStack : pipeBlockEntity.getItems()) {
+            if (itemStack.is(Items.ENDER_EYE) && itemStack.getCount() > 0) {
+                var newState = stateInDirection.setValue(EndPortalFrameBlock.HAS_EYE, true);
+                world.setBlock(directionPos, newState, 2);
+                world.updateNeighbourForOutputSignal(directionPos, Blocks.END_PORTAL_FRAME);
+                itemStack.shrink(1);
+                world.levelEvent(1503, directionPos, 0);
+                BlockPattern.BlockPatternMatch blockPatternMatch = EndPortalFrameBlock.getOrCreatePortalShape().find(world, directionPos);
+                if (blockPatternMatch != null) {
+                    BlockPos blockPos2 = blockPatternMatch.getFrontTopLeft().offset(-3, 0, -3);
+
+                    for (int i = 0; i < 3; ++i) {
+                        for (int j = 0; j < 3; ++j) {
+                            world.setBlock(blockPos2.offset(i, 0, j), Blocks.END_PORTAL.defaultBlockState(), 2);
+                        }
+                    }
+
+                    world.globalLevelEvent(1038, blockPos2.offset(1, 0, 1), 0);
                 }
+            }
         }
+    }
+
+    public static boolean isOutput(Direction direction, Level world, BlockPos pipePos, BlockState pipeState) {
+        var prop = CopperPipeBlock.getConnection(direction);
+        if (pipeState.getValue(prop)) {
+            var otherPos = pipePos.relative(direction);
+            var otherState = world.getBlockState(otherPos);
+            if (otherState.is(UnflavouredPipesMod.ModBlocks.COPPER_PIPE)) {
+                return otherState.getValue(CopperPipeBlock.POWER) <= pipeState.getValue(CopperPipeBlock.POWER);
+            } else {
+                return pipeState.getValue(CopperPipeBlock.POWER) != Redstone.SIGNAL_MAX;
+            }
+        }
+
+        return false;
+    }
+
+    public static boolean isInput(Direction direction, Level world, BlockPos pipePos, BlockState pipeState) {
+        var prop = CopperPipeBlock.getConnection(direction);
+        if (pipeState.getValue(prop)) {
+            var otherPos = pipePos.relative(direction);
+            var otherState = world.getBlockState(otherPos);
+            if (otherState.is(UnflavouredPipesMod.ModBlocks.COPPER_PIPE)) {
+                return false;//otherState.getValue(CopperPipeBlock.POWER) >= pipeState.getValue(CopperPipeBlock.POWER); // copper pipes should only push to each other!
+            } else {
+                return pipeState.getValue(CopperPipeBlock.POWER) == Redstone.SIGNAL_MAX;
+            }
+        }
+
+        return false;
     }
 
     // Straight up copied from hopper
@@ -107,13 +179,6 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
                 if (container instanceof ChestBlockEntity && block instanceof ChestBlock chest) {
                     container = ChestBlock.getContainer(chest, blockState, world, blockPos, true);
                 }
-            }
-        }
-
-        if (container == null) {
-            var list = world.getEntities((Entity) null, new AABB(x - .5f, y - .5f, z - .5f, x + .5f, y + .5f, z + .5f), EntitySelector.CONTAINER_ENTITY_SELECTOR);
-            if (!list.isEmpty()) {
-                container = (Container) list.get(world.random.nextInt(list.size()));
             }
         }
 
@@ -195,6 +260,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         if (!this.tryLoadLootTable(compoundTag))
             ContainerHelper.loadAllItems(compoundTag, this.items);
         this.timer = compoundTag.getInt("Timer");
+        this.selectedDirIndex = compoundTag.getInt("SelectedDirectionIndex");
     }
 
     @Override
@@ -203,5 +269,16 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         if (!this.trySaveLootTable(compoundTag))
             ContainerHelper.saveAllItems(compoundTag, this.items);
         compoundTag.putInt("Timer", this.timer);
+        compoundTag.putInt("SelectedDirectionIndex", this.selectedDirIndex);
+    }
+
+    @Override
+    public boolean canOpen(Player player) {
+        return false;
+    }
+
+    private enum Flow {
+        INCOMING,
+        OUTGOING
     }
 }

@@ -19,7 +19,7 @@ public final class UnflavouredPipesMod {
 
     public static class ModBlocks {
         public static final Block COPPER_PIPE = new CopperPipeBlock(Properties.copy(Blocks.COPPER_BLOCK)
-                .strength(2.0F, 5.0F).noOcclusion().isSuffocating((state, getter, pos) -> false));
+                .strength(2.0F, 5.0F).isRedstoneConductor((s,l,p) -> false).noOcclusion().isSuffocating((state, getter, pos) -> false));
     }
 
     public static class ModItems {

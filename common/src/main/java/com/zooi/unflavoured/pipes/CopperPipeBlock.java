@@ -2,6 +2,9 @@ package com.zooi.unflavoured.pipes;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.LivingEntity;
@@ -22,11 +25,14 @@ import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.redstone.Redstone;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 
 public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterloggedBlock {
     //    public static final BooleanProperty ENABLED = BlockStateProperties.ENABLED;
@@ -64,6 +70,34 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
             case WEST -> WEST;
             case EAST -> EAST;
         };
+    }
+
+    @Override
+    public void animateTick(BlockState blockState, Level world, BlockPos blockPos, RandomSource randomSource) {
+        var power = blockState.getValue(POWER);
+        var v = (power / (float) Redstone.SIGNAL_MAX);
+
+        if (v * 0.6f > randomSource.nextFloat()) {
+            var bounds = getInteractionShape(blockState, world, blockPos).bounds().inflate(0.0625);
+
+            var x = (float) Mth.lerp(bounds.minX, bounds.maxX, randomSource.nextFloat());
+            var y = (float) Mth.lerp(bounds.minY, bounds.maxY, randomSource.nextFloat());
+            var z = (float) Mth.lerp(bounds.minZ, bounds.maxZ, randomSource.nextFloat());
+
+//            var movementDirection = new Vector3f();
+//
+//            if (blockState.hasBlockEntity()) {
+//                var blockEntity = world.getBlockEntity(blockPos);
+//                if (blockEntity instanceof CopperPipeBlockEntity pipeBlockEntity)
+//                    movementDirection = pipeBlockEntity.effectiveTransferDirection.mul(110);
+//            }
+
+            world.addParticle(new DustParticleOptions(new Vector3f(v, 0, 0), 1.0F),
+                    blockPos.getX() + x,
+                    blockPos.getY() + y,
+                    blockPos.getZ() + z,
+                    0,0,0);
+        }
     }
 
     @Override
@@ -120,7 +154,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     public void neighborChanged(BlockState state, Level world, BlockPos pos, Block blockIn, BlockPos fromPos, boolean isMoving) {
         super.neighborChanged(state, world, pos, blockIn, fromPos, isMoving);
         if (!world.isClientSide) {
-
             var stateChanged = false;
 
             for (var direction : Direction.values()) {
@@ -136,22 +169,8 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
             }
 
             if (stateChanged) {
-                var straight = isStraight(state);
-
-                if (straight) {
-                    if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
-                    if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
-
-                    if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
-                    if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
-
-                    if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
-                    if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
-                }
-
-                state = state.setValue(JOINT, !straight);
-                world.setBlock(pos, state, 2);
-                this.updateNeighbors(world, pos, state);
+                state = updateJointProperty(state);
+                world.setBlock(pos, state, 1 | 2 | 4);
             }
         }
         state = this.updatePower(state, world, pos);
@@ -162,23 +181,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         return true;
     }
 
-    private void updateNeighbors(Level world, BlockPos pos, BlockState state) {
-        for (var direction : Direction.values()) {
-            var neighborPos = pos.relative(direction);
-            var neighborState = world.getBlockState(neighborPos);
-
-            if (neighborState.getBlock() instanceof CopperPipeBlock) {
-                var opposite = direction.getOpposite();
-                var neighborProperty = getConnection(opposite);
-                var neighborConnected = this.canConnectTo(state, pos, world);
-
-                if (neighborState.getValue(neighborProperty) != neighborConnected) {
-                    var updatedNeighborState = neighborState.setValue(neighborProperty, neighborConnected);
-                    world.setBlock(neighborPos, updatedNeighborState, 2);
-                }
-            }
-        }
-    }
 
     @Override
     public void onRemove(BlockState state1, Level world, BlockPos pos, BlockState state2, boolean idk) {
@@ -195,7 +197,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     @Override
     public void setPlacedBy(Level world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         state = this.updatePower(state, world, pos);
-        this.updateNeighbors(world, pos, state);
         super.setPlacedBy(world, pos, state, placer, stack);
     }
 
@@ -258,12 +259,35 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     }
 
     @Override
-    public BlockState updateShape(BlockState blockState, Direction direction, BlockState blockState2, LevelAccessor levelAccessor, BlockPos blockPos, BlockPos blockPos2) {
-        if (blockState.getValue(WATERLOGGED)) {
-            levelAccessor.scheduleTick(blockPos, Fluids.WATER, Fluids.WATER.getTickDelay(levelAccessor));
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighborState, LevelAccessor world, BlockPos pos, BlockPos neighborPos) {
+        BooleanProperty property = getConnection(direction);
+        boolean connected = canConnectTo(neighborState, neighborPos, world);
+
+        state = state.setValue(property, connected);
+        state = updateJointProperty(state);
+
+        if (state.getValue(WATERLOGGED))
+            world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
+
+        return state;
+    }
+
+    private @NotNull BlockState updateJointProperty(BlockState state) {
+        var straight = isStraight(state);
+
+        if (straight) {
+            if (state.getValue(SOUTH) && !state.getValue(NORTH)) state = state.setValue(NORTH, true);
+            if (state.getValue(NORTH) && !state.getValue(SOUTH)) state = state.setValue(SOUTH, true);
+
+            if (state.getValue(WEST) && !state.getValue(EAST)) state = state.setValue(EAST, true);
+            if (state.getValue(EAST) && !state.getValue(WEST)) state = state.setValue(WEST, true);
+
+            if (state.getValue(UP) && !state.getValue(DOWN)) state = state.setValue(DOWN, true);
+            if (state.getValue(DOWN) && !state.getValue(UP)) state = state.setValue(UP, true);
         }
 
-        return super.updateShape(blockState, direction, blockState2, levelAccessor, blockPos, blockPos2);
+        state = state.setValue(JOINT, !straight);
+        return state;
     }
 
     @Override
@@ -300,7 +324,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         return new CopperPipeBlockEntity(blockPos, blockState);
     }
 
-    private boolean canConnectTo(BlockState neighborState, BlockPos pos, Level world) {
+    private boolean canConnectTo(BlockState neighborState, BlockPos pos, LevelAccessor world) {
         var b = neighborState.getBlock();
         if (neighborState.hasBlockEntity()) {
             var be = world.getBlockEntity(pos);

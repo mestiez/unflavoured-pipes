@@ -25,9 +25,12 @@ import net.minecraft.world.level.block.state.pattern.BlockPattern;
 import net.minecraft.world.level.redstone.Redstone;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 
 public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
     public static final int TRANSFER_COOLDOWN = 15;
+
+//    public Vector3f effectiveTransferDirection = new Vector3f();
 
     private NonNullList<ItemStack> items;
     private int timer = 0;
@@ -53,11 +56,19 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
 
         var directions = Direction.values();
         for (var dir : directions)
+        {
             handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING);
+//            if (handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING) && world.getRandom().nextBoolean())
+//                copperPipe.effectiveTransferDirection = dir.getOpposite().step();
+        }
 
         for (int i = 0; i < directions.length; i++) {
-            if (handleDir(directions[(copperPipe.selectedDirIndex++) % directions.length], world, blockPos, state, copperPipe, Flow.OUTGOING))
+            var dir = directions[(copperPipe.selectedDirIndex++) % directions.length];
+            if (handleDir(dir, world, blockPos, state, copperPipe, Flow.OUTGOING))
+            {
+//                copperPipe.effectiveTransferDirection = dir.step();
                 break; // we only do 1 thing at most
+            }
         }
     }
 
@@ -72,9 +83,9 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
         if (targetContainer != null) {
             if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
-                didSomething = ContainerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction);
+                didSomething = ContainerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 64);
             else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
-                didSomething = ContainerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction);
+                didSomething = ContainerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 64);
         }
 
         // handle composter (!didSomething && )

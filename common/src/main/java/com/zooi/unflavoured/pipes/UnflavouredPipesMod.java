@@ -24,7 +24,7 @@ public final class UnflavouredPipesMod {
     }
 
     public static class ModItems {
-        public static final Item COPPER_PIPE = new BlockItem(ModBlocks.COPPER_PIPE, new Item.Properties().stacksTo(64).arch$tab(CreativeModeTabs.FUNCTIONAL_BLOCKS));
+        public static final Item COPPER_PIPE = new BlockItem(ModBlocks.COPPER_PIPE, new Item.Properties().stacksTo(64).arch$tab(CreativeModeTabs.REDSTONE_BLOCKS));
     }
 
     public static class ModBlockEntityType {

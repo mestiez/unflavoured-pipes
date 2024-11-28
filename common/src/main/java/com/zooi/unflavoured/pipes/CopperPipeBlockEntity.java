@@ -27,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
-    public static final int TRANSFER_COOLDOWN = 15;
+    public static final int TRANSFER_COOLDOWN = 5;
 
 //    public Vector3f effectiveTransferDirection = new Vector3f();
 
@@ -82,9 +82,9 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
         if (targetContainer != null) {
             if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 64);
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 1);
             else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 64);
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 1);
         }
 
         // handle composter (!didSomething && )

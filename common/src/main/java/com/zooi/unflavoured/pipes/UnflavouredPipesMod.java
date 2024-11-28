@@ -16,10 +16,11 @@ import net.minecraft.world.level.block.state.BlockBehaviour.Properties;
 public final class UnflavouredPipesMod {
     public static final String MOD_ID = "unflavoured_pipes";
     public static final Supplier<RegistrarManager> MANAGER = Suppliers.memoize(() -> RegistrarManager.get(MOD_ID));
+    public static IContainerUtils containerUtils = new FallbackContainerUtils();
 
     public static class ModBlocks {
         public static final Block COPPER_PIPE = new CopperPipeBlock(Properties.copy(Blocks.COPPER_BLOCK)
-                .strength(2.0F, 5.0F).isRedstoneConductor((s,l,p) -> false).noOcclusion().isSuffocating((state, getter, pos) -> false));
+                .strength(2.0F, 5.0F).isRedstoneConductor((s, l, p) -> false).noOcclusion().isSuffocating((state, getter, pos) -> false));
     }
 
     public static class ModItems {
@@ -30,7 +31,7 @@ public final class UnflavouredPipesMod {
         public static final BlockEntityType<CopperPipeBlockEntity> COPPER_PIPE = BlockEntityType.Builder.of(CopperPipeBlockEntity::new, ModBlocks.COPPER_PIPE).build(null);
     }
 
-    public static ResourceLocation getId(String s){
+    public static ResourceLocation getId(String s) {
         return new ResourceLocation(MOD_ID, s);
     }
 

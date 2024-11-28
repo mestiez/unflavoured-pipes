@@ -25,7 +25,6 @@ import net.minecraft.world.level.block.state.pattern.BlockPattern;
 import net.minecraft.world.level.redstone.Redstone;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Vector3f;
 
 public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
     public static final int TRANSFER_COOLDOWN = 15;
@@ -83,9 +82,9 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
         if (targetContainer != null) {
             if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
-                didSomething = ContainerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 64);
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 64);
             else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
-                didSomething = ContainerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 64);
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 64);
         }
 
         // handle composter (!didSomething && )

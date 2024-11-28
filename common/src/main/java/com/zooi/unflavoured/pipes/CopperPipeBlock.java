@@ -153,26 +153,26 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     @Override
     public void neighborChanged(BlockState state, Level world, BlockPos pos, Block blockIn, BlockPos fromPos, boolean isMoving) {
         super.neighborChanged(state, world, pos, blockIn, fromPos, isMoving);
-        if (!world.isClientSide) {
-            var stateChanged = false;
-
-            for (var direction : Direction.values()) {
-                var neighborPos = pos.relative(direction);
-                var neighborState = world.getBlockState(neighborPos);
-                var connected = this.canConnectTo(neighborState, neighborPos, world);
-                var connectionProperty = getConnection(direction);
-
-                if (state.getValue(connectionProperty) != connected) {
-                    state = state.setValue(connectionProperty, connected);
-                    stateChanged = true;
-                }
-            }
-
-            if (stateChanged) {
-                state = updateJointProperty(state);
-                world.setBlock(pos, state, 1 | 2 | 4);
-            }
-        }
+//        if (!world.isClientSide) {
+//            var stateChanged = false;
+//
+//            for (var direction : Direction.values()) {
+//                var neighborPos = pos.relative(direction);
+//                var neighborState = world.getBlockState(neighborPos);
+//                var connected = this.canConnectTo(neighborState, neighborPos, world);
+//                var connectionProperty = getConnection(direction);
+//
+//                if (state.getValue(connectionProperty) != connected) {
+//                    state = state.setValue(connectionProperty, connected);
+//                    stateChanged = true;
+//                }
+//            }
+//
+//            if (stateChanged) {
+//                state = updateJointProperty(state);
+//                world.setBlock(pos, state, 1 | 2 | 4);
+//            }
+//        }
         state = this.updatePower(state, world, pos);
     }
 
@@ -261,11 +261,21 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     @Override
     public BlockState updateShape(BlockState state, Direction direction, BlockState neighborState, LevelAccessor world, BlockPos pos, BlockPos neighborPos) {
         BooleanProperty property = getConnection(direction);
-        boolean connected = canConnectTo(neighborState, neighborPos, world);
+//        boolean connected = canConnectTo(neighborState, neighborPos, world);
 
-        state = state.setValue(property, connected);
+//        state = state.setValue(property, connected);
+//        state = updateJointProperty(state);
+
+        for (var dir : Direction.values()) {
+            var p = pos.relative(dir);
+            var s = world.getBlockState(p);
+            var connected = this.canConnectTo(s, p, world);
+            var connectionProperty = getConnection(dir);
+            if (state.getValue(connectionProperty) != connected) {
+                state = state.setValue(connectionProperty, connected);
+            }
+        }
         state = updateJointProperty(state);
-
         if (state.getValue(WATERLOGGED))
             world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
 

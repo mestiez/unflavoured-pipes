@@ -9,7 +9,7 @@ Important aspects:
 - I really recommend installing [Jade](https://modrinth.com/mod/jade) to see whats inside the pipes if you're confused
 - The pipes can feed into composters and end portal frames
 - Pipes conduct redstone
-- Just look at the gallery
+- Just look at the [gallery](https://modrinth.com/mod/unflavoured-pipes/gallery)
 
 I tried my best to make these pipes look and act like they are part of vanilla Minecraft. They're not overpowered, have fair limitations, and integrate with vanilla mechanics.
 

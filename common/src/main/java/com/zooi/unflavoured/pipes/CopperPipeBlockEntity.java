@@ -101,7 +101,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
                 options.destinationContainer = pipeBlockEntity;
                 options.sourcePos = directionPos;
                 options.destinationPos = pipePos;
-                options.direction = direction.getOpposite();
+                options.direction = direction;
                 didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(options);
             }
         }

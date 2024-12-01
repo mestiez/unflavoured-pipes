@@ -30,12 +30,13 @@ public final class UnflavouredPipesMod {
 
             var sourceBlockEntity = options.world.getBlockEntity(options.sourcePos);
             var destBlockEntity = options.world.getBlockEntity(options.destinationPos);
+            var direction = options.direction;
 
             if (sourceBlockEntity == null || destBlockEntity == null)
                 return false;
 
-            var sourceCap = sourceBlockEntity.getCapability(ITEM_HANDLER);
-            var destCap = destBlockEntity.getCapability(ITEM_HANDLER);
+            var sourceCap = sourceBlockEntity.getCapability(ITEM_HANDLER, direction);
+            var destCap = destBlockEntity.getCapability(ITEM_HANDLER, direction.getOpposite());
 
             if (!sourceCap.isPresent() || !destCap.isPresent())
                 return false;

@@ -21,9 +21,9 @@ public final class UnflavouredPipesMod implements ModInitializer {
 
     private static class FabricContainerUtils implements IContainerUtils {
         @Override
-        public boolean transferFirstAvailableItem(Container sourceContainer, Container destinationContainer, Direction direction, int maxCount) {
-            var source = InventoryStorage.of(sourceContainer, direction);
-            var dest = InventoryStorage.of(destinationContainer, direction.getOpposite());
+        public boolean transferFirstAvailableItem(Options options) {
+            var source = InventoryStorage.of(options.sourceContainer, options.direction);
+            var dest = InventoryStorage.of(options.destinationContainer, options.direction.getOpposite());
 
             if (!source.supportsExtraction())
                 return false;
@@ -40,7 +40,7 @@ public final class UnflavouredPipesMod implements ModInitializer {
 
                     var resource = view.getResource();
 
-                    var extracted = view.extract(resource, Math.min(view.getAmount(), maxCount), transaction);
+                    var extracted = view.extract(resource, Math.min(view.getAmount(), options.maxCount), transaction);
                     var inserted = dest.insert(resource, extracted, transaction);
                     transferred = inserted != 0;
                     if (transferred){

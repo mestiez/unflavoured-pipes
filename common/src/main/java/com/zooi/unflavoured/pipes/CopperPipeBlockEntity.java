@@ -3,6 +3,7 @@ package com.zooi.unflavoured.pipes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
+import net.minecraft.data.info.BiomeParametersDumpReport;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -41,7 +42,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
     }
 
     public static void pushItemsTick(Level world, BlockPos blockPos, BlockState state, CopperPipeBlockEntity copperPipe) {
-        if (world.isClientSide())
+        if (world.isClientSide() || !(world instanceof ServerLevel serverWorld))
             return;
 
         copperPipe.timer++;
@@ -56,14 +57,14 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var directions = Direction.values();
         for (var dir : directions)
         {
-            handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING);
+            handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.INCOMING);
 //            if (handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING) && world.getRandom().nextBoolean())
 //                copperPipe.effectiveTransferDirection = dir.getOpposite().step();
         }
 
         for (int i = 0; i < directions.length; i++) {
             var dir = directions[(copperPipe.selectedDirIndex++) % directions.length];
-            if (handleDir(dir, world, blockPos, state, copperPipe, Flow.OUTGOING))
+            if (handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.OUTGOING))
             {
 //                copperPipe.effectiveTransferDirection = dir.step();
                 break; // we only do 1 thing at most
@@ -71,7 +72,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         }
     }
 
-    private static boolean handleDir(Direction direction, Level world, BlockPos pipePos, BlockState pipeState, CopperPipeBlockEntity pipeBlockEntity, Flow flow) {
+    private static boolean handleDir(Direction direction, ServerLevel world, BlockPos pipePos, BlockState pipeState, CopperPipeBlockEntity pipeBlockEntity, Flow flow) {
         var directionPos = pipePos.relative(direction);
         var directionPosCenter = directionPos.getCenter();
         var stateInDirection = world.getBlockState(directionPos);
@@ -81,10 +82,28 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         // handle container
         var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
         if (targetContainer != null) {
+            var options = new IContainerUtils.Options();
+            options.maxCount = 1;
+            options.world = world;
+
             if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(pipeBlockEntity, targetContainer, direction, 1);
+            {
+                options.sourceContainer = pipeBlockEntity;
+                options.destinationContainer = targetContainer;
+                options.sourcePos = pipePos;
+                options.destinationPos = directionPos;
+                options.direction = direction;
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(options);
+            }
             else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(targetContainer, pipeBlockEntity, direction, 1);
+            {
+                options.sourceContainer = targetContainer;
+                options.destinationContainer = pipeBlockEntity;
+                options.sourcePos = directionPos;
+                options.destinationPos = pipePos;
+                options.direction = direction.getOpposite();
+                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(options);
+            }
         }
 
         // handle composter (!didSomething && )

@@ -1,7 +1,7 @@
 modLoader = "javafml"
 loaderVersion = "[47,)"
 #issueTrackerURL = ""
-license = "Insert License Here"
+license = "AGPL-3.0-only"
 
 [[mods]]
 modId = "unflavoured_pipes"

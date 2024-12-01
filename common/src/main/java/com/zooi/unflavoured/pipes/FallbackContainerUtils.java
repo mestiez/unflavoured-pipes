@@ -6,7 +6,12 @@ import net.minecraft.world.WorldlyContainer;
 import net.minecraft.world.item.ItemStack;
 
 public class FallbackContainerUtils implements IContainerUtils {
-    public boolean transferFirstAvailableItem(Container sourceContainer, Container destinationContainer, Direction direction, int maxCount) {
+    public boolean transferFirstAvailableItem(Options options) {
+        var sourceContainer = options.sourceContainer;
+        var destinationContainer = options.destinationContainer;
+        var direction = options.direction;
+        var maxCount = options.maxCount;
+
         var sourceSlots = getAccessibleSlots(sourceContainer, direction);
 
         for (int srcSlot : sourceSlots) {

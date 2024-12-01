@@ -8,10 +8,10 @@
     "zooi"
   ],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "homepage": "https://modrinth.com/mod/unflavoured-pipes/",
+    "sources": "https://github.com/mestiez/unflavoured-pipes"
   },
-  "license": "CC0-1.0",
+  "license": "AGPL-3.0-only",
   "icon": "assets/unflavoured_pipes/icon.png",
   "environment": "*",
   "entrypoints": {

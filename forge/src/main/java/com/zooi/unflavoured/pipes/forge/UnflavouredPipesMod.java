@@ -1,7 +1,14 @@
 package com.zooi.unflavoured.pipes.forge;
 
+import com.zooi.unflavoured.pipes.CopperPipeBlockEntity;
 import com.zooi.unflavoured.pipes.IContainerUtils;
 import dev.architectury.platform.forge.EventBuses;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityManager;
 import net.minecraftforge.common.capabilities.CapabilityToken;
@@ -75,6 +82,49 @@ public final class UnflavouredPipesMod {
             }
 
             return transferred;
+        }
+
+        @Override
+        public boolean canPipeConnect(BlockState neighborState, BlockPos pos, Level world, Direction direction) {
+            if (neighborState.is(Blocks.END_PORTAL_FRAME) || neighborState.is(Blocks.COMPOSTER))
+                return true;
+
+            var blockEntity = world.getBlockEntity(pos);
+
+            if (blockEntity != null) {
+                var cap = blockEntity.getCapability(ITEM_HANDLER);
+                return cap.isPresent();
+            }
+
+            return false;
+        }
+
+        @Override
+        public boolean transfer(ServerLevel world, BlockPos pipePos, BlockPos containerPos, BlockState pipeState, BlockState containerState, CopperPipeBlockEntity pipeBlockEntity, CopperPipeBlockEntity.Flow flow, Direction direction) {
+            var containerEntity = world.getBlockEntity(containerPos);
+
+            if (containerEntity != null) {
+                var cap = containerEntity.getCapability(ITEM_HANDLER);
+                if (cap.isPresent()) {
+                    var options = new IContainerUtils.Options();
+                    options.maxCount = 1;
+                    options.world = world;
+
+                    if (flow == CopperPipeBlockEntity.Flow.OUTGOING && CopperPipeBlockEntity.isOutput(direction, world, pipePos, pipeState)) {
+                        options.sourcePos = pipePos;
+                        options.destinationPos = containerPos;
+                        options.direction = direction;
+                        return transferFirstAvailableItem(options);
+                    } else if (flow == CopperPipeBlockEntity.Flow.INCOMING && CopperPipeBlockEntity.isInput(direction, world, pipePos, pipeState)) {
+                        options.sourcePos = containerPos;
+                        options.destinationPos = pipePos;
+                        options.direction = direction;
+                        return transferFirstAvailableItem(options);
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

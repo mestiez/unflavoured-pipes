@@ -1,9 +1,17 @@
 package com.zooi.unflavoured.pipes;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.WorldlyContainer;
+import net.minecraft.world.WorldlyContainerHolder;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 public class FallbackContainerUtils implements IContainerUtils {
     public boolean transferFirstAvailableItem(Options options) {
@@ -57,6 +65,71 @@ public class FallbackContainerUtils implements IContainerUtils {
         }
 
         return false;
+    }
+
+    @Override
+    public boolean canPipeConnect(BlockState neighborState, BlockPos pos, Level world, Direction direction) {
+        if (neighborState.hasBlockEntity()) {
+            var be = world.getBlockEntity(pos);
+            if (be != null)
+                return be instanceof Container || be instanceof CopperPipeBlockEntity;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean transfer(ServerLevel world, BlockPos pipePos, BlockPos containerPos, BlockState pipeState, BlockState containerState, CopperPipeBlockEntity pipeBlockEntity, CopperPipeBlockEntity.Flow flow, Direction direction) {
+        var directionPosCenter = containerPos.getCenter();
+        var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
+        if (targetContainer != null) {
+            var options = new IContainerUtils.Options();
+            options.maxCount = 1;
+            options.world = world;
+
+            if (flow == CopperPipeBlockEntity.Flow.OUTGOING && CopperPipeBlockEntity.isOutput(direction, world, pipePos, pipeState))
+            {
+                options.sourceContainer = pipeBlockEntity;
+                options.destinationContainer = targetContainer;
+                options.sourcePos = pipePos;
+                options.destinationPos = containerPos;
+                options.direction = direction;
+                return transferFirstAvailableItem(options);
+            }
+            else if (flow == CopperPipeBlockEntity.Flow.INCOMING && CopperPipeBlockEntity.isInput(direction, world, pipePos, pipeState))
+            {
+                options.sourceContainer = targetContainer;
+                options.destinationContainer = pipeBlockEntity;
+                options.sourcePos = containerPos;
+                options.destinationPos = pipePos;
+                options.direction = direction;
+                return transferFirstAvailableItem(options);
+            }
+        }
+
+        return false;
+    }
+
+    // Straight up copied from hopper
+    @Nullable
+    private static Container getContainerAt(Level world, double x, double y, double z) {
+        Container container = null;
+        var blockPos = BlockPos.containing(x, y, z);
+        var blockState = world.getBlockState(blockPos);
+        var block = blockState.getBlock();
+        if (block instanceof WorldlyContainerHolder worldlyContainerHolder) {
+            container = worldlyContainerHolder.getContainer(blockState, world, blockPos);
+        } else if (blockState.hasBlockEntity()) {
+            var blockEntity = world.getBlockEntity(blockPos);
+            if (blockEntity instanceof Container c) {
+                container = c;
+                if (container instanceof ChestBlockEntity && block instanceof ChestBlock chest) {
+                    container = ChestBlock.getContainer(chest, blockState, world, blockPos, true);
+                }
+            }
+        }
+
+        return container;
     }
 
     private static ItemStack transferItemStackToContainer(Container destinationContainer, ItemStack itemStack, Direction direction, int maxCount) {

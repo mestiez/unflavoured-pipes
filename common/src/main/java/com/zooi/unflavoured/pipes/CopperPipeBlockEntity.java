@@ -3,7 +3,6 @@ package com.zooi.unflavoured.pipes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
-import net.minecraft.data.info.BiomeParametersDumpReport;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -11,7 +10,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
-import net.minecraft.world.WorldlyContainerHolder;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -19,18 +17,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
-import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.pattern.BlockPattern;
 import net.minecraft.world.level.redstone.Redstone;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
     public static final int TRANSFER_COOLDOWN = 5;
-
-//    public Vector3f effectiveTransferDirection = new Vector3f();
 
     private NonNullList<ItemStack> items;
     private int timer = 0;
@@ -56,19 +50,12 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
 
         var directions = Direction.values();
         for (var dir : directions)
-        {
             handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.INCOMING);
-//            if (handleDir(dir, world, blockPos, state, copperPipe, Flow.INCOMING) && world.getRandom().nextBoolean())
-//                copperPipe.effectiveTransferDirection = dir.getOpposite().step();
-        }
 
         for (int i = 0; i < directions.length; i++) {
             var dir = directions[(copperPipe.selectedDirIndex++) % directions.length];
             if (handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.OUTGOING))
-            {
-//                copperPipe.effectiveTransferDirection = dir.step();
                 break; // we only do 1 thing at most
-            }
         }
     }
 
@@ -80,31 +67,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var didSomething = false;
 
         // handle container
-        var targetContainer = getContainerAt(world, directionPosCenter.x, directionPosCenter.y, directionPosCenter.z);
-        if (targetContainer != null) {
-            var options = new IContainerUtils.Options();
-            options.maxCount = 1;
-            options.world = world;
-
-            if (flow == Flow.OUTGOING && isOutput(direction, world, pipePos, pipeState))
-            {
-                options.sourceContainer = pipeBlockEntity;
-                options.destinationContainer = targetContainer;
-                options.sourcePos = pipePos;
-                options.destinationPos = directionPos;
-                options.direction = direction;
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(options);
-            }
-            else if (flow == Flow.INCOMING && isInput(direction, world, pipePos, pipeState))
-            {
-                options.sourceContainer = targetContainer;
-                options.destinationContainer = pipeBlockEntity;
-                options.sourcePos = directionPos;
-                options.destinationPos = pipePos;
-                options.direction = direction;
-                didSomething = UnflavouredPipesMod.containerUtils.transferFirstAvailableItem(options);
-            }
-        }
+        UnflavouredPipesMod.containerUtils.transfer(world, pipePos, directionPos, pipeState, stateInDirection, pipeBlockEntity, flow, direction);
 
         // handle composter (!didSomething && )
         if (!didSomething && flow == Flow.OUTGOING && stateInDirection.is(Blocks.COMPOSTER)) {
@@ -190,28 +153,6 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         }
 
         return false;
-    }
-
-    // Straight up copied from hopper
-    @Nullable
-    private static Container getContainerAt(Level world, double x, double y, double z) {
-        Container container = null;
-        var blockPos = BlockPos.containing(x, y, z);
-        var blockState = world.getBlockState(blockPos);
-        var block = blockState.getBlock();
-        if (block instanceof WorldlyContainerHolder worldlyContainerHolder) {
-            container = worldlyContainerHolder.getContainer(blockState, world, blockPos);
-        } else if (blockState.hasBlockEntity()) {
-            var blockEntity = world.getBlockEntity(blockPos);
-            if (blockEntity instanceof Container c) {
-                container = c;
-                if (container instanceof ChestBlockEntity && block instanceof ChestBlock chest) {
-                    container = ChestBlock.getContainer(chest, blockState, world, blockPos, true);
-                }
-            }
-        }
-
-        return container;
     }
 
     @Override
@@ -306,7 +247,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         return false;
     }
 
-    private enum Flow {
+    public enum Flow {
         INCOMING,
         OUTGOING
     }

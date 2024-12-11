@@ -5,7 +5,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -26,7 +25,6 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.level.redstone.Redstone;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -35,7 +33,6 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterloggedBlock {
-    //    public static final BooleanProperty ENABLED = BlockStateProperties.ENABLED;
     public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     public static final BooleanProperty NORTH = BlockStateProperties.NORTH;
     public static final BooleanProperty EAST = BlockStateProperties.EAST;
@@ -49,7 +46,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     public CopperPipeBlock(Properties properties) {
         super(properties);
         this.registerDefaultState(getStateDefinition().any()
-//                .setValue(ENABLED, true)
                 .setValue(WATERLOGGED, false)
                 .setValue(POWER, 0)
                 .setValue(JOINT, false)
@@ -84,14 +80,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
             var y = (float) Mth.lerp(bounds.minY, bounds.maxY, randomSource.nextFloat());
             var z = (float) Mth.lerp(bounds.minZ, bounds.maxZ, randomSource.nextFloat());
 
-//            var movementDirection = new Vector3f();
-//
-//            if (blockState.hasBlockEntity()) {
-//                var blockEntity = world.getBlockEntity(blockPos);
-//                if (blockEntity instanceof CopperPipeBlockEntity pipeBlockEntity)
-//                    movementDirection = pipeBlockEntity.effectiveTransferDirection.mul(110);
-//            }
-
             world.addParticle(new DustParticleOptions(new Vector3f(v, 0, 0), 1.0F),
                     blockPos.getX() + x,
                     blockPos.getY() + y,
@@ -109,7 +97,7 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
         for (var direction : Direction.values()) {
             var neighborPos = pos.relative(direction);
             var neighborState = world.getBlockState(neighborPos);
-            var connected = this.canConnectTo(neighborState, neighborPos, world);
+            var connected = UnflavouredPipesMod.containerUtils.canPipeConnect(neighborState, neighborPos, world, direction);
             state = state.setValue(getConnection(direction), connected);
         }
         var straight = isStraight(state);
@@ -153,26 +141,6 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     @Override
     public void neighborChanged(BlockState state, Level world, BlockPos pos, Block blockIn, BlockPos fromPos, boolean isMoving) {
         super.neighborChanged(state, world, pos, blockIn, fromPos, isMoving);
-//        if (!world.isClientSide) {
-//            var stateChanged = false;
-//
-//            for (var direction : Direction.values()) {
-//                var neighborPos = pos.relative(direction);
-//                var neighborState = world.getBlockState(neighborPos);
-//                var connected = this.canConnectTo(neighborState, neighborPos, world);
-//                var connectionProperty = getConnection(direction);
-//
-//                if (state.getValue(connectionProperty) != connected) {
-//                    state = state.setValue(connectionProperty, connected);
-//                    stateChanged = true;
-//                }
-//            }
-//
-//            if (stateChanged) {
-//                state = updateJointProperty(state);
-//                world.setBlock(pos, state, 1 | 2 | 4);
-//            }
-//        }
         state = this.updatePower(state, world, pos);
     }
 
@@ -260,16 +228,10 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
 
     @Override
     public BlockState updateShape(BlockState state, Direction direction, BlockState neighborState, LevelAccessor world, BlockPos pos, BlockPos neighborPos) {
-        BooleanProperty property = getConnection(direction);
-//        boolean connected = canConnectTo(neighborState, neighborPos, world);
-
-//        state = state.setValue(property, connected);
-//        state = updateJointProperty(state);
-
         for (var dir : Direction.values()) {
             var p = pos.relative(dir);
             var s = world.getBlockState(p);
-            var connected = this.canConnectTo(s, p, world);
+            var connected = world instanceof Level lvl && UnflavouredPipesMod.containerUtils.canPipeConnect(s, p, lvl, dir);
             var connectionProperty = getConnection(dir);
             if (state.getValue(connectionProperty) != connected) {
                 state = state.setValue(connectionProperty, connected);
@@ -332,17 +294,5 @@ public class CopperPipeBlock extends BaseEntityBlock implements SimpleWaterlogge
     @Override
     public @Nullable BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
         return new CopperPipeBlockEntity(blockPos, blockState);
-    }
-
-    private boolean canConnectTo(BlockState neighborState, BlockPos pos, LevelAccessor world) {
-        var b = neighborState.getBlock();
-        if (neighborState.hasBlockEntity()) {
-            var be = world.getBlockEntity(pos);
-            if (be != null) {
-                return be instanceof Container || be instanceof CopperPipeBlockEntity;
-            }
-        }
-
-        return b instanceof CopperPipeBlock || b instanceof ComposterBlock || b instanceof EndPortalFrameBlock;
     }
 }

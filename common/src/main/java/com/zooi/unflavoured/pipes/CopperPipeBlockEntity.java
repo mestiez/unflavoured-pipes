@@ -53,7 +53,8 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
             handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.INCOMING);
 
         for (int i = 0; i < directions.length; i++) {
-            var dir = directions[(copperPipe.selectedDirIndex++) % directions.length];
+            copperPipe.selectedDirIndex++;
+            var dir = directions[copperPipe.selectedDirIndex % directions.length];
             if (handleDir(dir, serverWorld, blockPos, state, copperPipe, Flow.OUTGOING))
                 break; // we only do 1 thing at most
         }
@@ -67,7 +68,7 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         var didSomething = false;
 
         // handle container
-        UnflavouredPipesMod.containerUtils.transfer(world, pipePos, directionPos, pipeState, stateInDirection, pipeBlockEntity, flow, direction);
+        didSomething = UnflavouredPipesMod.containerUtils.transfer(world, pipePos, directionPos, pipeState, stateInDirection, pipeBlockEntity, flow, direction);
 
         // handle composter (!didSomething && )
         if (!didSomething && flow == Flow.OUTGOING && stateInDirection.is(Blocks.COMPOSTER)) {
@@ -98,9 +99,9 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
         return didSomething;
     }
 
-    private static void handleEnderFrame(Level world, CopperPipeBlockEntity pipeBlockEntity, BlockState stateInDirection, BlockPos directionPos) {
+    private static boolean handleEnderFrame(Level world, CopperPipeBlockEntity pipeBlockEntity, BlockState stateInDirection, BlockPos directionPos) {
         if (stateInDirection.getValue(EndPortalFrameBlock.HAS_EYE))
-            return;
+            return false;
 
         for (var itemStack : pipeBlockEntity.getItems()) {
             if (itemStack.is(Items.ENDER_EYE) && itemStack.getCount() > 0) {
@@ -120,9 +121,13 @@ public class CopperPipeBlockEntity extends RandomizableContainerBlockEntity {
                     }
 
                     world.globalLevelEvent(1038, blockPos2.offset(1, 0, 1), 0);
+
+                    return true;
                 }
             }
         }
+
+        return false;
     }
 
     public static boolean isOutput(Direction direction, Level world, BlockPos pipePos, BlockState pipeState) {
